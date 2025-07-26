@@ -1,0 +1,26 @@
+# Core
+streamlit
+
+# Data & numerics
+pandas
+numpy
+scipy
+scikit-learn
+
+# Machine learning & explainability
+xgboost
+shap
+
+# Optimization & portfolio analytics
+cvxpy
+riskfolio-lib
+
+# Network analysis
+networkx
+
+# Visualization
+plotly
+matplotlib
+
+# Crypto / security
+cryptography
