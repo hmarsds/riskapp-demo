@@ -120,7 +120,7 @@ def render_quadrants(master_df, longs_df, shorts_df, portfolio_df,
         try:
             tables = build_and_split(
                 base,
-                "FullHist" if book=="All" else book,
+                "All" if book=="All" else book,
                 portfolio_df,
                 window
             )
