@@ -31,14 +31,25 @@ def _geom_drawdowns(r):
 # ——— Core metrics ———
 def compute_metrics_window(sub, alpha=0.05):
     recs = {}
-    for t in sub.columns:
-        x = sub[t].dropna().values.reshape(-1,1).astype(float)
-        st.write(f"[compute_metrics_window] {t} dtype:", x.dtype, "shape:", x.shape)
+    for ticker in sub.columns:
+        x = sub[ticker].dropna().values.reshape(-1,1).astype(float)
         if len(x) < 2:
             continue
-        evar,_ = rf.EVaR_Hist(x, alpha=alpha)
-        recs[t] = {
-            'MAD':     float(rf.MAD(x)),
+
+        # wrap EVaR in try/except to avoid z=0 division
+        try:
+            evar, _ = rf.EVaR_Hist(x, alpha=alpha)
+        except ZeroDivisionError:
+            evar = np.nan
+
+        # likewise, you can guard any other rf calls if needed
+        try:
+            mad   = rf.MAD(x)
+        except Exception:
+            mad = np.nan
+
+        recs[ticker] = {
+            'MAD':     float(mad),
             'SemiDev': float(SemiDeviation(x)),
             'VaR95':   float(rf.VaR_Hist(x, alpha=alpha)),
             'CVaR95':  float(rf.CVaR_Hist(x, alpha=alpha)),
@@ -47,11 +58,9 @@ def compute_metrics_window(sub, alpha=0.05):
             'TG95':    float(rf.TG(x, alpha=alpha)),
             'WR':      float(WR(x)),
             'LPM1':    float(rf.LPM(x, MAR=0, p=1)),
-            'LPM2':    float(rf.LPM(x, MAR=0, p=2)),
+            'LPM2':    float(rf.LPM(x, MAR=0, p=2))
         }
-    df = pd.DataFrame(recs).T
-    st.write("[compute_metrics_window] head:", df.head())
-    return df
+    return pd.DataFrame(recs).T
 
 def compute_metrics_window_geom(sub, alpha=0.05):
     recs = {}
