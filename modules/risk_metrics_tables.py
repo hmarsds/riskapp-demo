@@ -17,7 +17,7 @@ def _safe_divide_array(numer, denom):
     return np.where(da==0.0, 0.0, na/da)
 
 # look‑back windows
-_WINDOW_DAYS = {'1M':21,'3M':63,'6M':126,'1Y':252,'FullHist':None}
+_WINDOW_DAYS = {'1M':21,'3M':63,'6M':126,'1Y':252}
 
 
 def _geom_wealth(r):
@@ -89,7 +89,7 @@ def build_and_split(returns_df, returns_label, portData, window_label, alpha=0.0
         df.set_index('date', inplace=True)
 
     # weight column
-    wcol = {'FullHist':'Net_weight','Long':'Long_weight','Short':'Short_weight'}[returns_label]
+    wcol = {'All':'Net_weight','Long':'Long_weight','Short':'Short_weight'}[returns_label]
     meta = portData.set_index('EOD Ticker')
 
     # look‑back slice
@@ -117,7 +117,7 @@ def build_and_split(returns_df, returns_label, portData, window_label, alpha=0.0
             mask = w > 0
         elif returns_label == "Short":
             mask = w > 0
-        else:  # FullHist
+        else:  # All
             mask = w != 0
         w = w[mask]
         tbl = tbl.loc[mask]
@@ -152,8 +152,8 @@ def render(master_df, longs_df, shorts_df, portfolio_df, page_header):
     page_header("","📊 Risk Metric Tables","Descriptive, tail‑risk & drawdown metrics")
 
     with st.sidebar:
-        returns_label = st.multiselect("Book", ["FullHist","Long","Short"],
-                                       default=["FullHist"], max_selections=1)
+        returns_label = st.multiselect("Book", ["All","Long","Short"],
+                                       default=["All"], max_selections=1)
         window_label  = st.multiselect("Look‑back", list(_WINDOW_DAYS.keys()),
                                        default=["1Y"], max_selections=1)
 
@@ -162,7 +162,7 @@ def render(master_df, longs_df, shorts_df, portfolio_df, page_header):
 
     book   = returns_label[0]
     window= window_label[0]
-    base   = {'FullHist':master_df,'Long':longs_df,'Short':shorts_df}[book]
+    base   = {'All':master_df,'Long':longs_df,'Short':shorts_df}[book]
 
     try:
         tables = build_and_split(base, book, portfolio_df, window)
