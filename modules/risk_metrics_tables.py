@@ -16,6 +16,7 @@ def _safe_divide_array(numer, denom):
     da = np.asarray(denom,  float)
     return np.where(da == 0.0, 0.0, na/da)
 
+# look‑back windows
 _WINDOW_DAYS = {'1M':21, '3M':63, '6M':126, '1Y':252, 'FullHist':None}
 
 def _geom_wealth(r):
@@ -34,7 +35,7 @@ def compute_metrics_window(sub, alpha=0.05):
         if len(x) < 2:
             continue
 
-        # wrap EVaR to guard against division-by-zero
+        # guard EVaR against z=0
         try:
             evar, _ = rf.EVaR_Hist(x, alpha=alpha)
         except ZeroDivisionError:
@@ -83,25 +84,25 @@ def compute_metrics_window_geom(sub, alpha=0.05):
 def build_and_split(returns_df, returns_label, portData, window_label, alpha=0.05):
     df = returns_df.copy()
 
-    # date → index
+    # convert date column to index if present
     if 'date' in df.columns:
         df['date'] = pd.to_datetime(df['date'])
         df.set_index('date', inplace=True)
 
-    # choose weight column
+    # pick correct weight column
     wcol = {'FullHist':'Net_weight', 'Long':'Long_weight', 'Short':'Short_weight'}[returns_label]
     meta = portData.set_index('EOD Ticker')
 
-    # window slice
+    # slice lookback window
     days = _WINDOW_DAYS[window_label]
     if days:
         df = df.iloc[-days:]
 
-    # restrict to tickers in metadata, coerce to numeric
+    # restrict to tickers we have metadata for
     tickers = [t for t in df.columns if t in meta.index]
     sub = df[tickers].apply(pd.to_numeric, errors='coerce')
 
-    # compute metrics
+    # compute all three tables
     desc_full = compute_metrics_window(sub, alpha=alpha)
     tail      = desc_full[['VaR95','CVaR95','EVaR95','RLVaR95','TG95','WR','LPM1','LPM2']]
     desc      = desc_full[['MAD','SemiDev']]
@@ -114,14 +115,24 @@ def build_and_split(returns_df, returns_label, portData, window_label, alpha=0.0
         # compute raw weights
         w_series = meta[wcol].reindex(tbl.index).fillna(0).astype(float)
 
-        # drop zero‐weight tickers
-        tbl     = tbl.loc[w_series > 0]
-        w_series = w_series.loc[w_series > 0]
+        # filter by book:
+        #  - Long  => only positive weights
+        #  - Short => only negative weights
+        #  - All   => any non-zero weight
+        if returns_label == "Long":
+            mask = w_series > 0
+        elif returns_label == "Short":
+            mask = w_series < 0
+        else:  # FullHist / All
+            mask = w_series != 0
+
+        tbl      = tbl.loc[mask]
+        w_series = w_series.loc[mask]
 
         # insert Security Name
         tbl.insert(0, 'Security Name', meta.loc[tbl.index, 'EOD Name'])
 
-        # format Weight column as strings
+        # format Weight column
         weight_strs = [f"{100*w:.2f}%" for w in w_series.values]
         tbl.insert(1, 'Weight', weight_strs)
 
@@ -146,16 +157,16 @@ def build_and_split(returns_df, returns_label, portData, window_label, alpha=0.0
 
 # ——— Renderer ———
 def render(master_df, longs_df, shorts_df, portfolio_df, page_header):
-    page_header("", "📊 Risk Metric Tables", "Descriptive, tail-risk & drawdown metrics")
+    page_header("", "📊 Risk Metric Tables", "Descriptive, tail‑risk & drawdown metrics")
 
     with st.sidebar:
         returns_label = st.multiselect("Book", ["FullHist","Long","Short"],
                                        default=["FullHist"], max_selections=1)
-        window_label  = st.multiselect("Look-back", list(_WINDOW_DAYS.keys()),
+        window_label  = st.multiselect("Look‑back", list(_WINDOW_DAYS.keys()),
                                        default=["1Y"], max_selections=1)
 
     if not returns_label or not window_label:
-        st.info("Select a book and a look-back window.")
+        st.info("Select a book and a look‑back window.")
         return
 
     returns_label = returns_label[0]
@@ -174,5 +185,5 @@ def render(master_df, longs_df, shorts_df, portfolio_df, page_header):
     tabs[2].dataframe(tables['drawdowns'],   use_container_width=True)
 
     st.caption(f"{returns_label} | {window_label} | rows={base.shape[0]} tickers={base.shape[1]}")
-    st.session_state['risk_tables_latest'] = tables
-    st.session_state['risk_portfolio_df']    = portfolio_df
+    st.session_state['risk_tables_latest']  = tables
+    st.session_state['risk_portfolio_df']   = portfolio_df
