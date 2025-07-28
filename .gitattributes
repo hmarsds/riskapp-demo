@@ -1,0 +1,4 @@
+data_private/*.enc filter=lfs diff=lfs merge=lfs -text
+*.enc filter=lfs diff=lfs merge=lfs -text
+*.parquet filter=lfs diff=lfs merge=lfs -text
+data_private/*.parquet filter=lfs diff=lfs merge=lfs -text

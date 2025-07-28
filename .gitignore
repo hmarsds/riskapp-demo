@@ -1,0 +1,82 @@
+# ==== Python build / runtime artifacts ====
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Jupyter / IPython
+.ipynb_checkpoints/
+
+# ==== Secrets & config (never commit real secrets) ====
+.env
+*.env
+.streamlit/secrets.toml   # keep secrets local; on Streamlit Cloud use their Secrets UI
+
+# ==== Data (raw) – keep ALL real datasets out of git ====
+#*.parquet
+*.feather
+*.csv
+*.xlsx
+*.xls
+*.tsv
+*.jsonl
+*.sav
+*.pkl
+
+# Ignore all raw data files…
+#*.parquet
+# …but keep these two specific Parquet files
+#!data/factors.parquet
+#!data/themes.parquet
+
+# Ignore the entire data_private folder…
+#data_private/
+# …but don’t ignore encrypted blobs within it
+#!data_private/*.enc
+
+# If you accidentally export decrypted temp files with a suffix, still ignore
+*__DECRYPTED.*
+
+# ==== Logs / cache ====
+*.log
+logs/
+.cache/
+streamlit_cache/
+profile_reports/
+
+# ==== OS / Editor noise ====
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.orig
+.idea/
+.vscode/
+*.code-workspace
+
+# ==== Distribution / packaging ====
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ==== Coverage / testing ====
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.mypy_cache/
+.dmypy.json
+.pyre/
+
+# ==== Misc ====
+# Avoid accidentally committing encryption scripts output if change names
+encrypt_output/.streamlit/secrets.toml
+.streamlit/secrets.toml
