@@ -11,7 +11,7 @@ from modules import (
     cluster_contributions,
     centrality,
     communities,
-    factor_analysis,
+    #factor_analysis,
 )
 
 st.set_page_config(page_title="Investment Dashboard", page_icon="📊", layout="wide")
@@ -34,8 +34,8 @@ master_df    = data["master_returns"]
 longs_df     = data["longs"]
 shorts_df    = data["shorts"]
 portfolio_df = data["portfolio"]
-factors_df   = data["factors"]
-themes_df    = data["themes"]
+#factors_df   = data["factors"]
+#themes_df    = data["themes"]
 
 # ---------- CSS ----------
 st.markdown(
@@ -69,10 +69,10 @@ SECTIONS = {
         "Centrality": "network_centrality",
         "Communities": "network_communities",
     },
-    "Factor Analysis": {
-        "Factor Analysis Overview": "fa_overview",
-        "SHAP Analysis": "fa_shap"
-    },
+    #"Factor Analysis": {
+        #"Factor Analysis Overview": "fa_overview",
+        #"SHAP Analysis": "fa_shap"
+    #},
 }
 
 # ---------- Navigation State ----------
@@ -285,45 +285,45 @@ You can:
     )
 
 # ---------- Factor Analysis Pages ----------
-def fa_overview():
-    page_header("", "Factor Analysis Overview", "")
+#def fa_overview():
+    #page_header("", "Factor Analysis Overview", "")
 
-    st.markdown(
-        "<span style='color:red; font-weight:700;'>"
-        "FOR ILLUSTRATIVE PURPOSES ONLY – Data here are limited by historical coverage, frequency gaps in factor inputs, and access constraints."
-        "</span>",
-        unsafe_allow_html=True,
-    )
+    #st.markdown(
+        #"<span style='color:red; font-weight:700;'>"
+        #"FOR ILLUSTRATIVE PURPOSES ONLY – Data here are limited by historical coverage, frequency gaps in factor inputs, and access constraints."
+        #"</span>",
+        #unsafe_allow_html=True,
+    #)
 
-    st.markdown("""
-The **Factor Analysis** module combines a robust XGBoost regression with SHAP‑based explainability to turn factor and secular megatrend theme exposures into insights on portfolio returns.
+    #st.markdown("""
+#The **Factor Analysis** module combines a robust XGBoost regression with SHAP‑based explainability to turn factor and secular megatrend theme exposures into insights on portfolio returns.
 
----
+#---
 
 ### Model Training and Validation  
-- **Time‑series split**: holds out the most recent 20% of data to assess out‑of‑sample performance.  
-- **Hyperparameter tuning**: runs a RandomizedSearchCV over tree depth, learning rate, subsample, and colsample parameters using time‑series CV.  
+#- **Time‑series split**: holds out the most recent 20% of data to assess out‑of‑sample performance.  
+#- **Hyperparameter tuning**: runs a RandomizedSearchCV over tree depth, learning rate, subsample, and colsample parameters using time‑series CV.  
 
----
+#---
 
 ### Global Explanations  
-- **Feature importance**: a bar chart of mean|SHAP| ranks factors by average impact on predictions.  
-- **Beeswarm**: shows the full distribution of each factor’s SHAP values, colored by factor level, to surface non‑linearities and dispersion.
+#- **Feature importance**: a bar chart of mean|SHAP| ranks factors by average impact on predictions.  
+#- **Beeswarm**: shows the full distribution of each factor’s SHAP values, colored by factor level, to surface non‑linearities and dispersion.
 
----
+#---
 
 ### Local and Temporal Insights  
-- **Dependence plots**: illustrate how the SHAP contribution of one factor varies with its value, optionally colored by a second factor to reveal interactions.  
-- **Time‑series heatmap**: aggregates mean SHAP contributions monthly (or daily) to enable tracking of regime shifts and evolving factor influence.
+#- **Dependence plots**: illustrate how the SHAP contribution of one factor varies with its value, optionally colored by a second factor to reveal interactions.  
+#- **Time‑series heatmap**: aggregates mean SHAP contributions monthly (or daily) to enable tracking of regime shifts and evolving factor influence.
 
----
+#---
 
-With this suite of tools and without data and resource limitations, it would be possible predict returns from factor exposures, but also **understand** exactly BOTH why and **when** those factors drive your portfolio performance.
-""")
+#With this suite of tools and without data and resource limitations, it would be possible predict returns from factor exposures, but also **understand** exactly BOTH why and **when** those factors drive your portfolio performance.
+#""")
 
 
-def fa_shap():
-    factor_analysis.render_shap_analysis(master_df, factors_df, themes_df)
+#def fa_shap():
+    #factor_analysis.render_shap_analysis(master_df, factors_df, themes_df)
 
 # ---------- Router ----------
 ROUTER = {
@@ -357,8 +357,8 @@ ROUTER = {
     "network_communities": lambda: communities.render_communities(
         master_df, longs_df, shorts_df, portfolio_df, page_header
     ),
-    "fa_overview": fa_overview,
-    "fa_shap": fa_shap
+    #"fa_overview": fa_overview,
+    #"fa_shap": fa_shap
 }
 
 # ---------- Render Selected Page ----------
