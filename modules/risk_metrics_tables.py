@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
-import riskfolio as rf   # v7.0.1
+import riskfolio as rf  # v7.0.1
 
 # ——— Helpers ———
 def SemiDeviation(x):
@@ -14,37 +14,33 @@ def WR(x):
 def _safe_divide_array(numer, denom):
     na = np.asarray(numer, float)
     da = np.asarray(denom,  float)
-    return np.where(da == 0.0, 0.0, na/da)
+    return np.where(da == 0.0, 0.0, na / da)
 
-_WINDOW_DAYS = {'1M':21,'3M':63,'6M':126,'1Y':252}
+_WINDOW_DAYS = {'1M': 21, '3M': 63, '6M': 126, '1Y': 252}
 
 def _geom_wealth(r):
     return np.cumprod(1.0 + r.flatten()).astype(float)
 
 def _geom_drawdowns(r):
-    W = _geom_wealth(r)
+    W    = _geom_wealth(r)
     peak = np.maximum.accumulate(W)
-    dd = ((peak - W) / peak).astype(float)
-    st.write("  [geom_drawdowns] sample:", dd[:5].flatten())  # inline log
-    return dd
+    return ((peak - W) / peak).astype(float)
 
 # ——— Core metrics ———
-def compute_metrics_window(sub, alpha=0.05):
+def compute_metrics_window(sub: pd.DataFrame, alpha: float = 0.05) -> pd.DataFrame:
     recs = {}
     for ticker in sub.columns:
-        x = sub[ticker].dropna().values.reshape(-1,1).astype(float)
+        x = sub[ticker].dropna().values.reshape(-1, 1).astype(float)
         if len(x) < 2:
             continue
 
-        # wrap EVaR in try/except to avoid z=0 division
         try:
             evar, _ = rf.EVaR_Hist(x, alpha=alpha)
         except ZeroDivisionError:
             evar = np.nan
 
-        # likewise, you can guard any other rf calls if needed
         try:
-            mad   = rf.MAD(x)
+            mad = rf.MAD(x)
         except Exception:
             mad = np.nan
 
@@ -58,38 +54,43 @@ def compute_metrics_window(sub, alpha=0.05):
             'TG95':    float(rf.TG(x, alpha=alpha)),
             'WR':      float(WR(x)),
             'LPM1':    float(rf.LPM(x, MAR=0, p=1)),
-            'LPM2':    float(rf.LPM(x, MAR=0, p=2))
+            'LPM2':    float(rf.LPM(x, MAR=0, p=2)),
         }
     return pd.DataFrame(recs).T
 
-def compute_metrics_window_geom(sub, alpha=0.05):
+def compute_metrics_window_geom(sub: pd.DataFrame, alpha: float = 0.05) -> pd.DataFrame:
     recs = {}
-    for t in sub.columns:
-        x = sub[t].dropna().values.reshape(-1,1).astype(float)
-        st.write(f"[compute_metrics_window_geom] {t} shape:", x.shape)
+    for ticker in sub.columns:
+        x = sub[ticker].dropna().values.reshape(-1, 1).astype(float)
         if len(x) < 2:
             continue
+
         dd = _geom_drawdowns(x)
-        mdd = float(dd.max())
-        add = float(dd[dd>0].mean()) if np.any(dd>0) else 0.0
-        dar = float(np.percentile(dd,95))
-        tail = dd[dd>=dar]
+        mdd  = float(dd.max())
+        add  = float(dd[dd > 0].mean()) if np.any(dd > 0) else 0.0
+        dar  = float(np.percentile(dd, 95))
+        tail = dd[dd >= dar]
         cdar = float(tail.mean()) if len(tail) else dar
         uci  = float(np.sqrt(np.mean(dd**2)))
-        recs[t] = {
-            'MDD_Abs':   mdd,
-            'ADD_Abs':   add,
-            'DaR_Abs95': dar,
-            'CDaR_Abs95':cdar,
-            'UCI_Abs':   uci
-        }
-    df = pd.DataFrame(recs).T
-    st.write("[compute_metrics_window_geom] head:", df.head())
-    return df
 
-# ——— Build & split (NO cache during debugging) ———
-def build_and_split(returns_df, returns_label, portData, window_label, alpha=0.05):
-    st.write(f"--- build_and_split: {returns_label=}  {window_label=} ---")
+        recs[ticker] = {
+            'MDD_Abs':    mdd,
+            'ADD_Abs':    add,
+            'DaR_Abs95':  dar,
+            'CDaR_Abs95': cdar,
+            'UCI_Abs':    uci,
+        }
+    return pd.DataFrame(recs).T
+
+# ——— Build & split ———
+@st.cache_data(show_spinner="Computing risk metric tables…")
+def build_and_split(
+    returns_df: pd.DataFrame,
+    returns_label: str,
+    portData: pd.DataFrame,
+    window_label: str,
+    alpha: float = 0.05
+) -> dict[str, pd.DataFrame]:
     df = returns_df.copy()
 
     # date → index
@@ -97,72 +98,77 @@ def build_and_split(returns_df, returns_label, portData, window_label, alpha=0.0
         df['date'] = pd.to_datetime(df['date'])
         df.set_index('date', inplace=True)
 
-    # weight lookup
-    wcol = {'FullHist':'Net_weight','Long':'Long_weight','Short':'Short_weight'}[returns_label]
-    st.write("using weight column:", wcol)
-
+    # pick weight column
+    wcol = {'FullHist': 'Net_weight', 'Long': 'Long_weight', 'Short': 'Short_weight'}[returns_label]
     meta = portData.set_index('EOD Ticker')
-    days = _WINDOW_DAYS[window_label]
+
+    # window slice
+    days = _WINDOW_DAYS.get(window_label)
     if days:
         df = df.iloc[-days:]
-    st.write("post-slice returns shape:", df.shape)
 
-    # only numeric
-    sub = df[[c for c in df.columns if c in meta.index]]
-    sub = sub.apply(pd.to_numeric, errors='coerce')
-    st.write("after to_numeric, dtypes:", sub.dtypes)
+    # filter to tickers in metadata
+    tickers = [t for t in df.columns if t in meta.index]
+    sub = df[tickers].apply(pd.to_numeric, errors='coerce')
 
+    # compute tables
     desc_full = compute_metrics_window(sub, alpha=alpha)
     tail      = desc_full[['VaR95','CVaR95','EVaR95','RLVaR95','TG95','WR','LPM1','LPM2']]
     desc      = desc_full[['MAD','SemiDev']]
     dd        = compute_metrics_window_geom(sub, alpha=alpha)
 
-    def attach(tbl, pct_cols, dec_cols=[]):
+    def attach(tbl: pd.DataFrame, pct_cols: list[str], dec_cols: list[str] = []) -> pd.DataFrame:
         tbl = tbl.loc[tbl.index.intersection(meta.index)].copy()
         tbl.insert(0, 'Security Name', meta.loc[tbl.index, 'EOD Name'])
 
-        # 1) compute raw weights as floats
+        # weights as floats → formatted strings
         w_series = meta[wcol].reindex(tbl.index).fillna(0).astype(float)
-        weights = (w_series.values / 1.0) * 100.0  # numpy array of floats
-        weights = np.round(weights, 2)
-
-        # 2) turn into list of "xx.xx%" strings
-        weight_strs = [f"{w:.2f}%" for w in weights]
+        weight_strs = [f"{100*w:.2f}%" for w in w_series.values]
         tbl.insert(1, 'Weight', weight_strs)
 
-        # 3) for each pct column, build strings too
+        # percent columns
         for c in pct_cols:
-            if c in tbl.columns:
-                # tbl[c] is currently float like 0.1234 → we want "12.34%"
-                vals = (tbl[c].astype(float) * 100.0).round(2)
-                tbl[c] = [f"{v:.2f}%" for v in vals]
+            if c in tbl:
+                pct_vals = (tbl[c].astype(float) * 100).round(2)
+                tbl[c] = [f"{v:.2f}%" for v in pct_vals]
 
-        # 4) decimals
+        # decimal columns
         for c in dec_cols:
-            if c in tbl.columns:
+            if c in tbl:
                 tbl[c] = tbl[c].astype(float).round(4)
 
         return tbl
 
     return {
-        'descriptive': attach(desc,   ['MAD','SemiDev']),
-        'tail_risk':   attach(tail,   tail.columns.tolist()),
-        'drawdowns':   attach(dd,     dd.columns.tolist()),
+        'descriptive': attach(desc,   ['MAD','SemiDev'], dec_cols=[]),
+        'tail_risk':   attach(tail,   tail.columns.tolist(), dec_cols=[]),
+        'drawdowns':   attach(dd,     dd.columns.tolist(), dec_cols=[]),
     }
 
 # ——— Renderer ———
-def render(master_df, longs_df, shorts_df, portfolio_df, page_header):
-    page_header("", "Risk Metric Tables", "…")
+def render(
+    master_df: pd.DataFrame,
+    longs_df: pd.DataFrame,
+    shorts_df: pd.DataFrame,
+    portfolio_df: pd.DataFrame,
+    page_header
+) -> None:
+    page_header("", "Risk Metric Tables", "Descriptive, tail-risk & drawdown metrics")
+
     with st.sidebar:
         returns_label = st.multiselect("Book", ["FullHist","Long","Short"], default=["FullHist"], max_selections=1)
-        window_label  = st.multiselect("Look‑back", list(_WINDOW_DAYS.keys()), default=["1Y"], max_selections=1)
+        window_label  = st.multiselect("Look-back", list(_WINDOW_DAYS.keys()), default=["1Y"], max_selections=1)
+
     if not returns_label or not window_label:
-        st.info("Pick book & window"); return
+        st.info("Select a book and a look-back window.")
+        return
+
     tables = build_and_split(master_df, returns_label[0], portfolio_df, window_label[0])
-    tabs = st.tabs(["Descriptive","Tail Risk","Drawdowns"])
+    tabs   = st.tabs(["Descriptive","Tail Risk","Drawdowns"])
     tabs[0].dataframe(tables['descriptive'], use_container_width=True)
-    tabs[1].dataframe(tables['tail_risk'],   use_container_width=True)
-    tabs[2].dataframe(tables['drawdowns'],   use_container_width=True)
+    tabs[1].dataframe(tables['tail_risk'],    use_container_width=True)
+    tabs[2].dataframe(tables['drawdowns'],    use_container_width=True)
+
     st.caption(f"{returns_label[0]} | {window_label[0]} | rows={master_df.shape[0]} tickers={master_df.shape[1]}")
     st.session_state['risk_tables_latest'] = tables
     st.session_state['risk_portfolio_df']   = portfolio_df
