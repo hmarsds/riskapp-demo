@@ -19,6 +19,7 @@ def _safe_divide_array(numer, denom):
 # look‑back windows
 _WINDOW_DAYS = {'1M':21,'3M':63,'6M':126,'1Y':252,'FullHist':None}
 
+
 def _geom_wealth(r):
     return np.cumprod(1.0 + r.flatten()).astype(float)
 
@@ -112,12 +113,12 @@ def build_and_split(returns_df, returns_label, portData, window_label, alpha=0.0
 
         # pick only this book’s weights
         w = meta[wcol].reindex(tbl.index).fillna(0).astype(float)
-        if returns_label=="Long":
-            mask = w>0
-        elif returns_label=="Short":
-            mask = w<0
+        if returns_label == "Long":
+            mask = w > 0
+        elif returns_label == "Short":
+            mask = w > 0
         else:  # FullHist
-            mask = w!=0
+            mask = w != 0
         w = w[mask]
         tbl = tbl.loc[mask]
 
