@@ -6,6 +6,7 @@ pandas
 numpy
 scipy
 scikit-learn
+openpyxl>=3.0.0
 
 # Machine learning & explainability
 xgboost
