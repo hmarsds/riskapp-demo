@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import streamlit as st
 
+from modules.cluster_core import spearman_ward_clusters
+
 def render_hierarchical(
     master_df: pd.DataFrame,
     longs_df: pd.DataFrame,
@@ -37,55 +39,41 @@ def render_hierarchical(
         st.warning("Not enough assets after cleaning for clustering.")
         return
 
-    # 4. Compute Spearman corr, distance, linkage
-    codep    = Y.corr(method="spearman")
-    dist_mat = np.sqrt(0.5 * (1 - codep))
-    condensed= sch.distance.squareform(dist_mat.values)
-    linkage  = sch.linkage(condensed, method="ward", optimal_ordering=True)
+    # 4. Compute clusters (shared helper ensures cross-page consistency)
+    labels, linkage, codep, leaves = spearman_ward_clusters(
+        Y, max_k=min(10, Y.shape[1]-1), min_size=2
+    )
 
-    # 5. Auto‑k via two‑difference gap
-    def find_k(link, max_k=10, min_size=2):
-        heights = link[:,2]
-        top_n   = np.sort(heights)[-max_k-1:]
-        diffs   = np.diff(top_n)
-        ddiffs  = diffs[1:] - diffs[:-1]
-        best    = np.argmax(ddiffs) + 1
-        n_leaves= link.shape[0] + 1
-        k0      = n_leaves - (best + 1)
-        for k in range(k0, 1, -1):
-            lbls = sch.fcluster(link, t=k, criterion="maxclust")
-            if np.bincount(lbls)[1:].min() >= min_size:
-                return k
-        return 2
-    max_k    = min(10, codep.shape[1]-1)
-    k        = find_k(linkage, max_k=max_k)
-    clusters = sch.fcluster(linkage, t=k, criterion="maxclust")
-
-    # 6. Reorder leaves
-    leaves    = sch.dendrogram(linkage, no_plot=True)["leaves"]
+    # 5. Heatmap in leaf order (visuals only)
     codep_ord = codep.iloc[leaves, leaves]
-    tickers   = codep_ord.columns.tolist()
+    tickers_leaf = codep_ord.columns.tolist()
+    labels_leaf = labels.loc[tickers_leaf].to_numpy()  # align labels to leaf order
 
-    # === Interactive Plotly heatmap ===
+    # Interactive Plotly heatmap
     fig = go.Figure(go.Heatmap(
         z=codep_ord.values,
-        x=tickers,
-        y=tickers,
+        x=tickers_leaf,
+        y=tickers_leaf,
         colorscale="RdBu_r",
         zmin=-1, zmax=1,
-        colorbar=dict(title="Spearman ρ")
+        colorbar=dict(title="Spearman ρ")
     ))
     fig.update_xaxes(tickangle=90, automargin=True)
     fig.update_yaxes(autorange="reversed", automargin=True)
-    fig.update_layout(
-        width=800, height=800,
-        margin=dict(l=120, r=20, t=50, b=120)
-    )
-    permuted = [clusters[i] for i in leaves]
-    spans = {}
-    for idx, cl in enumerate(permuted):
-        spans.setdefault(cl, [idx, idx])[1] = idx
-    for start, end in spans.values():
+    fig.update_layout(width=800, height=800, margin=dict(l=120, r=20, t=50, b=120))
+
+    # Draw magenta rectangles for contiguous runs of the same cluster id
+    spans = []
+    if len(labels_leaf):
+        start = 0
+        current = labels_leaf[0]
+        for i in range(1, len(labels_leaf)):
+            if labels_leaf[i] != current:
+                spans.append((start, i-1))
+                start = i
+                current = labels_leaf[i]
+        spans.append((start, len(labels_leaf)-1))
+    for (start, end) in spans:
         if end > start:
             fig.add_shape(
                 type="rect",
@@ -94,17 +82,19 @@ def render_hierarchical(
                 line=dict(color="magenta", width=3),
                 fillcolor="rgba(0,0,0,0)"
             )
+
     st.subheader("Interactive Spearman Clustermap")
     st.plotly_chart(fig, use_container_width=True)
 
     # === Static dendrogram (dark) ===
     plt.style.use("dark_background")
     heights_sorted = np.sort(linkage[:,2])
-    threshold = heights_sorted[-(k-1)] if k>1 else 0
+    k = int(labels.max())
+    threshold = heights_sorted[-(k-1)] if k > 1 and heights_sorted.size >= (k-1) else 0
     fig2, ax2 = plt.subplots(figsize=(14,5))
     sch.dendrogram(
         linkage,
-        labels=tickers,
+        labels=codep.columns.tolist(),
         leaf_rotation=90,
         color_threshold=threshold,
         above_threshold_color="grey",
@@ -118,54 +108,48 @@ def render_hierarchical(
     st.subheader("Dendrogram")
     st.pyplot(fig2)
 
-    # === Cluster Membership table (original format) ===
+    # === Cluster Membership table (index-safe; original order) ===
     st.subheader("Cluster Memberships")
     rows = []
     sector_map = portfolio_df.set_index("EOD Ticker")["Sector"].to_dict()
-    for cl in sorted(set(clusters)):
-        members = [tickers[i] for i,v in enumerate(clusters) if v==cl]
+
+    for cl, idx in labels.groupby(labels).groups.items():
+        members = list(idx)  # tickers in original (column) order belonging to cluster cl
         sub = codep.loc[members, members]
-        avg_rho = sub.values[np.triu_indices_from(sub,1)].mean() if len(members)>1 else np.nan
-        secs = sector_map.get(members[0], "") if members else ""
+        avg_rho = sub.values[np.triu_indices_from(sub,1)].mean() if len(members) > 1 else np.nan
         rows.append({
-            "Cluster":   cl,
+            "Cluster":   int(cl),
             "Tickers":   ", ".join(members),
-            "Avg ρ":      round(avg_rho, 3),
-            "Sector(s)": ", ".join(sorted({sector_map.get(t,"") for t in members})),
+            "Avg ρ":     round(float(avg_rho), 3) if pd.notna(avg_rho) else np.nan,
+            "Sector(s)": ", ".join(sorted({sector_map.get(t, "") for t in members})),
             "Book":      book
         })
-    df_mem = pd.DataFrame(rows)
+    df_mem = pd.DataFrame(rows).sort_values("Cluster")
     st.dataframe(df_mem, use_container_width=True)
 
-    # === Top 20 Intra‑Cluster Correlations Across All Clusters ===
-    st.subheader("Top 20 Intra‑Cluster Correlations")
-    rows = []
-    sector_map = portfolio_df.set_index("EOD Ticker")["Sector"].to_dict()
+    # === Top 20 Intra-Cluster Correlations Across All Clusters ===
+    st.subheader("Top 20 Intra-Cluster Correlations")
     from itertools import combinations
-
-    # collect every intra‐cluster pair
-    for cl in sorted(set(clusters)):
-        members = [tickers[i] for i, v in enumerate(clusters) if v == cl]
+    pair_rows = []
+    for cl, idx in labels.groupby(labels).groups.items():
+        members = list(idx)
         if len(members) < 2:
             continue
         subρ = codep.loc[members, members]
         for t1, t2 in combinations(members, 2):
-            rows.append({
-                "Cluster":     cl,
-                "Ticker 1":    t1,
-                "Ticker 2":    t2,
-                "Correlation": subρ.at[t1, t2],
-                "Sector 1":    sector_map.get(t1, "Unknown"),
-                "Sector 2":    sector_map.get(t2, "Unknown"),
+            pair_rows.append({
+                "Cluster":     int(cl),
+                "Ticker 1":    t1,
+                "Ticker 2":    t2,
+                "Correlation": float(subρ.at[t1, t2]),
+                "Sector 1":    sector_map.get(t1, "Unknown"),
+                "Sector 2":    sector_map.get(t2, "Unknown"),
                 "Book":        book
             })
-
-    # build DataFrame, sort, take top 20
     df_pairs = (
-        pd.DataFrame(rows)
+        pd.DataFrame(pair_rows)
           .sort_values("Correlation", ascending=False)
           .head(20)
           .reset_index(drop=True)
     )
-
     st.dataframe(df_pairs, use_container_width=True)

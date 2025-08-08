@@ -1,5 +1,4 @@
 # modules/cluster_contributions.py
-# -------------------------------------------------
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -8,14 +7,16 @@ import scipy.cluster.hierarchy as sch
 import riskfolio as rf
 from cvxpy import installed_solvers
 
-# ---------------- Look‑back map ----------------
-_LOOKBACK_DAYS = {"6M": 126, "1Y": 252, "3Y": 756}
+from modules.cluster_core import spearman_ward_clusters
+
+# ---------------- Look-back map ----------------
+_LOOKBACK_DAYS = {"6M": 126, "1Y": 252, "3Y": 756}  # (keep as-is; Hierarchical also has 5Y)
 
 # ---------------- Sidebar ----------------
 def _sidebar_controls():
     st.sidebar.markdown("**Cluster Contributions Controls**")
     book   = st.sidebar.selectbox("Book", ["All", "Long", "Short"], index=0)
-    window = st.sidebar.selectbox("Look‑back", list(_LOOKBACK_DAYS.keys()), index=1)
+    window = st.sidebar.selectbox("Look-back", list(_LOOKBACK_DAYS.keys()), index=1)
     rm     = st.sidebar.selectbox("Risk Measure", ["CVaR", "CDaR"], 0)
     alpha  = st.sidebar.slider("Tail α (CVaR/CDaR)", 0.01, 0.10, 0.05, 0.01)
     return book, window, rm, alpha
@@ -40,32 +41,9 @@ def _slice_returns(full_df: pd.DataFrame, book: str, window: str,
     df = df.ffill().bfill(limit=5)
     return df
 
-# ---------------- Clustering ----------------
-def _compute_clusters(Y: pd.DataFrame, max_k: int = 10, min_size: int = 2):
-    codep = Y.corr(method="spearman")
-    dist  = np.sqrt(0.5 * (1 - codep))
-    cond  = sch.distance.squareform(dist.values)
-    link  = sch.linkage(cond, method="ward", optimal_ordering=True)
-
-    # auto-k via two-diff gap, enforce min_size
-    heights = np.sort(link[:, 2])[-(max_k + 1):]
-    diffs   = np.diff(heights)
-    ddiffs  = diffs[1:] - diffs[:-1]
-    best    = np.argmax(ddiffs) + 1
-    n_leaves = link.shape[0] + 1
-    k0       = n_leaves - (best + 1)
-    for kk in range(k0, 1, -1):
-        labs = sch.fcluster(link, t=kk, criterion="maxclust")
-        if np.bincount(labs)[1:].min() >= min_size:
-            k0 = kk
-            break
-
-    labels = sch.fcluster(link, t=k0, criterion="maxclust")
-    return labels, link, codep
-
 # ---------------- RC with gross weights only ----------------
 def _risk_contributions_gross(Y: pd.DataFrame,
-                              labels: np.ndarray,
+                              labels: pd.Series,
                               net_weights: pd.Series,
                               rm: str,
                               alpha: float):
@@ -89,9 +67,13 @@ def _risk_contributions_gross(Y: pd.DataFrame,
     ).flatten()
 
     total_rc = rc_raw.sum() or 1.0
+
+    # Align labels to Y.columns (original order)
+    labels_arr = labels.reindex(Y.columns).to_numpy()
+
     df_pa = pd.DataFrame({
         "Ticker"  : Y.columns,
-        "Cluster" : labels,
+        "Cluster" : labels_arr,
         "RC_raw"  : rc_raw,
         "RC_pct"  : rc_raw / total_rc * 100,
         "w_gross" : w_gross.values
@@ -133,8 +115,10 @@ def render_cluster_contributions(master_df, longs_df, shorts_df, portfolio_df, p
         return
     net_weights = portfolio_df.set_index("EOD Ticker")["Net_weight"]
 
-    # 3. clusters
-    labels, _, _ = _compute_clusters(Y, max_k=min(10, Y.shape[1] - 1))
+    # 3. clusters (shared + deterministic)
+    labels, link, codep, leaves = spearman_ward_clusters(
+        Y, max_k=min(10, Y.shape[1] - 1), min_size=2
+    )
 
     # 4. RC
     df_cluster, df_pa = _risk_contributions_gross(Y, labels, net_weights, rm, alpha)
@@ -168,6 +152,6 @@ def render_cluster_contributions(master_df, longs_df, shorts_df, portfolio_df, p
     )
 
     st.caption(
-        f"Rows={Y.shape[0]} | Tickers={Y.shape[1]} | k={labels.max()} | "
+        f"Rows={Y.shape[0]} | Tickers={Y.shape[1]} | k={int(labels.max())} | "
         f"rm={rm} α={alpha:.2f} | weights=gross (|w|=1)"
     )
