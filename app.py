@@ -74,8 +74,6 @@ SECTIONS = {
         #"SHAP Analysis": "fa_shap"
     #},
 }
-SECTIONS.pop("Factor Analysis", None)
-
 
 # ---------- Navigation State ----------
 if "last_page_per_section" not in st.session_state:
@@ -107,6 +105,8 @@ def _on_page_change():
         current_section = st.session_state.active_section
     st.session_state.active_page = SECTIONS[current_section][label]
 
+SECTIONS.pop("Factor Analysis", None)
+
 # ---------- Sidebar Navigation ----------
 st.sidebar.title("📂 Navigation")
 section_names = list(SECTIONS.keys())
@@ -136,6 +136,9 @@ st.sidebar.selectbox(
 
 st.sidebar.markdown("---")
 st.sidebar.caption("Demo • RiskApp")
+
+SECTIONS.pop("Factor Analysis", None)
+
 
 # ---------- Header Helper ----------
 def page_header(icon: str, title: str, subtitle: str = ""):
