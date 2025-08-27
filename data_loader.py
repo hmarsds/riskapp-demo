@@ -51,16 +51,16 @@ def load_data():
         raise
 
     # --- Unencrypted parquet for factor/theme analysis ---
-    factors_path = DATA_DIR / "factors.parquet"
-    themes_path  = DATA_DIR / "themes.parquet"
+    #factors_path = DATA_DIR / "factors.parquet"
+    #themes_path  = DATA_DIR / "themes.parquet"
 
-    if not factors_path.exists():
-        raise FileNotFoundError(f"Missing factors file: {factors_path}")
-    if not themes_path.exists():
-        raise FileNotFoundError(f"Missing themes file: {themes_path}")
+    #if not factors_path.exists():
+        #raise FileNotFoundError(f"Missing factors file: {factors_path}")
+    #if not themes_path.exists():
+        #raise FileNotFoundError(f"Missing themes file: {themes_path}")
 
-    factors_df = pd.read_parquet(factors_path)
-    themes_df  = pd.read_parquet(themes_path)
+    #factors_df = pd.read_parquet(factors_path)
+    #themes_df  = pd.read_parquet(themes_path)
 
 
     return {
@@ -68,6 +68,6 @@ def load_data():
         "longs": longs_df,
         "shorts": shorts_df,
         "portfolio": portfolio_df,
-        "factors": factors_df,
-        "themes": themes_df,
+        #"factors": factors_df,
+        #"themes": themes_df,
     }
