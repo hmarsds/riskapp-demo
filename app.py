@@ -34,7 +34,7 @@ master_df    = data["master_returns"]
 longs_df     = data["longs"]
 shorts_df    = data["shorts"]
 portfolio_df = data["portfolio"]
-factors_df   = data["factors"]
+# factors_df   = data["factors"]
 themes_df    = data["themes"]
 
 # ---------- CSS ----------
@@ -357,8 +357,8 @@ ROUTER = {
     "network_communities": lambda: communities.render_communities(
         master_df, longs_df, shorts_df, portfolio_df, page_header
     ),
-    "fa_overview": fa_overview,
-    "fa_shap": fa_shap
+    #"fa_overview": fa_overview,
+    #"fa_shap": fa_shap
 }
 
 # ---------- Render Selected Page ----------
