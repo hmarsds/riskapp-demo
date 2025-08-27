@@ -366,6 +366,12 @@ ROUTER = {
     #"fa_shap": fa_shap
 }
 
+# If an old session has a stale section/page, reset it to a valid one
+if st.session_state.get("active_section") not in SECTIONS:
+    st.session_state.active_section = list(SECTIONS.keys())[0]
+if st.session_state.get("active_page") not in SECTIONS[st.session_state.active_section].values():
+    st.session_state.active_page = list(SECTIONS[st.session_state.active_section].values())[0]
+    
 # ---------- Render Selected Page ----------
 page_id = st.session_state.active_page
 ROUTER.get(page_id, lambda: st.error(f"Unknown page id: {page_id}"))()
