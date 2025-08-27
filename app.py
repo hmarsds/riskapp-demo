@@ -35,7 +35,7 @@ longs_df     = data["longs"]
 shorts_df    = data["shorts"]
 portfolio_df = data["portfolio"]
 # factors_df   = data["factors"]
-themes_df    = data["themes"]
+# themes_df    = data["themes"]
 
 # ---------- CSS ----------
 st.markdown(
@@ -322,8 +322,8 @@ The **Factor Analysis** module combines a robust XGBoost regression with SHAP‑
 """)
 
 
-def fa_shap():
-    factor_analysis.render_shap_analysis(master_df, factors_df, themes_df)
+#def fa_shap():
+    #factor_analysis.render_shap_analysis(master_df, factors_df, themes_df)
 
 # ---------- Router ----------
 ROUTER = {
