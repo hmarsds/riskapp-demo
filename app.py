@@ -74,6 +74,8 @@ SECTIONS = {
         #"SHAP Analysis": "fa_shap"
     #},
 }
+SECTIONS.pop("Factor Analysis", None)
+
 
 # ---------- Navigation State ----------
 if "last_page_per_section" not in st.session_state:
